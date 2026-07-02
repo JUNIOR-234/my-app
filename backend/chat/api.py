@@ -1,3 +1,4 @@
+import traceback
 from ninja import NinjaAPI, Schema
 from django.shortcuts import get_object_or_404
 from typing import List
@@ -70,13 +71,38 @@ def execute_system_pipeline(request, token: str, payload: MessageIn):
             session=session, agent_id=payload.agent_id, sender='agent', text=agent_response_text
         )
     else:
-        # Run CrewAI Multi-Agent processing task blocks
-        agent_response_text = run_agent_pipeline(payload.agent_id, payload.text)
-        
-        # Check if the specific text-to-speech engine profile was requested
         audio_link = None
-        if payload.agent_id == "voice":
-            audio_link = generate_elevenlabs_voice(agent_response_text)
+        try:
+            # Run CrewAI Multi-Agent processing task blocks
+            agent_response_text = run_agent_pipeline(payload.agent_id, payload.text)
+            
+            # Check if the specific text-to-speech engine profile was requested
+            if payload.agent_id == "voice":
+                audio_link = generate_elevenlabs_voice(agent_response_text)
+        except Exception as exc:
+            error_message = (
+                "⚠️ Execution error. Check API server logging configuration. "
+                "The backend pipeline failed to complete."
+            )
+            print("🔴 Backend pipeline failure:", exc)
+            traceback.print_exc()
+
+            system_response = ChatMessage.objects.create(
+                session=session,
+                agent_id=payload.agent_id,
+                sender='system',
+                text=error_message,
+                audio_url=None
+            )
+
+            return {
+                "id": system_response.id,
+                "agent_id": system_response.agent_id,
+                "sender": system_response.sender,
+                "text": system_response.text,
+                "audio_url": system_response.audio_url,
+                "timestamp": system_response.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            }
             
         system_response = ChatMessage.objects.create(
             session=session,

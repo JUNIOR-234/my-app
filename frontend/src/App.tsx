@@ -32,7 +32,7 @@ export interface SessionResponse {
 // ==========================================
 // 2. MONOLITHIC API SERVICE ENGINE
 // ==========================================
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 
 export const apiService = {
   async initializeSession(): Promise<string> {
