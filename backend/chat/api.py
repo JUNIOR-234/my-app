@@ -1,7 +1,7 @@
 import traceback
 from ninja import NinjaAPI, Schema
 from django.shortcuts import get_object_or_404
-from typing import List
+from typing import List, Optional
 from .models import GuestSession, ChatMessage
 from .utils import send_employer_alert
 from .ai_engine import run_agent_pipeline, generate_elevenlabs_voice
@@ -21,7 +21,7 @@ class MessageOut(Schema):
     agent_id: str
     sender: str
     text: str
-    audio_url: str = None
+    audio_url: Optional[str] = None
     timestamp: str
 
 # --- ASYNC-FRIENDLY API ENDPOINTS ---
