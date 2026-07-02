@@ -4,7 +4,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 from django.conf import settings
-from crewai import Agent, Task, Crew, Process
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import PromptTemplate
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
@@ -62,63 +63,78 @@ def load_repository_code() -> str:
     return "".join(source_chunks)
 
 # ==========================================
-# 2. CREWAI AGENT ORCHESTRATION FACTORY
+# 2. LANGCHAIN AGENT CHAIN FACTORY
 # ==========================================
-def get_specialized_agent(agent_id: str) -> Agent:
+def get_agent_chain(agent_id: str):
     """
-    Factory pattern returning specialized CrewAI agents with specific roles, goals, and traits.
+    Factory pattern returning LangChain runnable chains with role-specific prompts.
     """
-    # Force CrewAI to use Gemini via CrewAI native provider when available.
     gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if gemini_key:
         os.environ["GEMINI_API_KEY"] = gemini_key
         os.environ["GOOGLE_API_KEY"] = gemini_key
 
-    gemini_llm = "gemini-2.5-flash"
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.7)
 
     if agent_id == "cv":
-        return Agent(
-            role="Corporate Talent Acquisition Director",
-            goal="Analyze the developer's tech stack, framework projects, and experience accurately for tech recruiters.",
-            backstory="You are an elite silicon-valley technical recruiter. You evaluate matching frameworks and answer project architecture inquiries with professional brevity.",
-            llm=gemini_llm,
-            verbose=False,
-            allow_delegation=False
+        prompt = PromptTemplate(
+            input_variables=["context"],
+            template="""You are a Corporate Talent Acquisition Director. Analyze the developer's tech stack, framework projects, and experience accurately for tech recruiters.
+
+Context:
+{context}
+
+Provide a professional, brief response focused on matching frameworks and project architecture. Use markdown formatting."""
         )
     elif agent_id == "audit":
-        return Agent(
-            role="Principal Security Architect & Threat Analyst",
-            goal="Review software code blocks for vulnerabilities, architectural malpractices, memory leaks, or syntax errors.",
-            backstory="You are a strict, blunt cyber-security auditor. You provide precise code evaluations, rank bug severity (High/Medium/Low), and provide refactored, safe code snippets in beautiful markdown.",
-            llm=gemini_llm,
-            verbose=False,
-            allow_delegation=False
+        prompt = PromptTemplate(
+            input_variables=["context"],
+            template="""You are a Principal Security Architect & Threat Analyst. Review software code blocks for vulnerabilities, architectural malpractices, memory leaks, or syntax errors.
+
+Context:
+{context}
+
+Provide precise code evaluations, rank bug severity (High/Medium/Low), and provide refactored, safe code snippets in beautiful markdown. Be blunt and direct."""
         )
     elif agent_id == "bio":
-        return Agent(
-            role="Virtual Operations Chief of Staff",
-            goal="Provide accurate data regarding the developer's geographic location, contact pathways, and hiring parameters.",
-            backstory="You manage John's professional calendar and global logistics operations. You explain explicitly where he stays, how to call him, and call-to-actions.",
-            llm=gemini_llm,
-            verbose=False,
-            allow_delegation=False
+        prompt = PromptTemplate(
+            input_variables=["context"],
+            template="""You are a Virtual Operations Chief of Staff. Provide accurate data regarding the developer's geographic location, contact pathways, and hiring parameters.
+
+Context:
+{context}
+
+Explain explicitly where John stays, how to call him, and provide clear call-to-actions. Be direct and professional."""
         )
-    else: # 'voice' or baseline identity ambassador
-        return Agent(
-            role="Virtual Chief PR Officer",
-            goal="Draft a natural, highly engaging professional summary about John's capabilities designed specifically for voice broadcasting.",
-            backstory="You are a masterful marketing presenter. You summarize his career in punchy, verbal-friendly sentences that sound incredible when spoken out loud by an audio engine.",
-            llm=gemini_llm,
-            verbose=False,
-            allow_delegation=False
+    elif agent_id == "voice":
+        prompt = PromptTemplate(
+            input_variables=["context"],
+            template="""You are a Virtual Chief PR Officer. Draft a natural, highly engaging professional summary about John's capabilities designed specifically for voice broadcasting.
+
+Context:
+{context}
+
+Summarize his career in punchy, verbal-friendly sentences that sound incredible when spoken out loud by an audio engine. Keep it concise and energetic."""
         )
+    else:  # 'direct'
+        prompt = PromptTemplate(
+            input_variables=["context"],
+            template="""Acknowledge the message and indicate it has been routed to the engineer for immediate review.
+
+Context:
+{context}
+
+Keep the response brief and professional."""
+        )
+
+    return prompt | llm
 
 # ==========================================
 # 3. PIPELINE WORKFLOW EXECUTION THREAD
 # ==========================================
 def run_agent_pipeline(agent_id: str, prompt: str) -> str:
     """
-    Ingests prompts, links agents to tasks, evaluates grounding context, and returns responses.
+    Ingests prompts, routes to specialized chains, and returns responses.
     """
     # 1. Fetch grounding context information
     knowledge_base = load_portfolio_knowledge()
@@ -135,31 +151,22 @@ def run_agent_pipeline(agent_id: str, prompt: str) -> str:
                 f"{knowledge_base}\n\nRepository Source Code:\nUnable to load the project source files for audit."
             )
 
-    # 2. Build the targeted worker agent
-    worker_agent = get_specialized_agent(agent_id)
+    # 2. Build and execute the agent chain
+    chain = get_agent_chain(agent_id)
     
-    # 3. Establish task guidelines with strict formatting thresholds
-    analysis_task = Task(
-        description=(
-            f"User Prompt: '{prompt}'\n\n"
-            f"Grounding Data Context:\n{knowledge_base}\n\n"
-            f"Instructions: Process the user prompt strictly using the Grounding Data context. "
-            f"Act out your specified role completely. Use tight, professional typography and layout. "
-            f"If code is present, supply a clean, optimized solution."
-        ),
-        expected_output="A clean, concise, executive-level markdown response addressing the prompt directly based on context rules.",
-        agent=worker_agent
-    )
+    # 3. Construct the full context for the LLM
+    full_context = f"User Prompt: '{prompt}'\n\nGround Truth Context:\n{knowledge_base}"
     
-    # 4. Spin up the Crew structure
-    crew = Crew(
-        agents=[worker_agent],
-        tasks=[analysis_task],
-        process=Process.sequential
-    )
-    
-    # Execute and return raw completion output string
-    return str(crew.kickoff())
+    # 4. Run the chain and return the response
+    try:
+        result = chain.invoke({"context": full_context})
+        # Extract text from AIMessage object
+        if hasattr(result, 'content'):
+            return result.content.strip()
+        return str(result).strip()
+    except Exception as e:
+        print(f"🔴 Pipeline execution error for agent '{agent_id}': {e}")
+        raise
 
 # ==========================================
 # 4. ELEVENLABS MULTI-MODAL SYNTHESIS ENGINE
