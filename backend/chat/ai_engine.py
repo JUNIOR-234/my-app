@@ -3,7 +3,6 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from django.conf import settings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 
@@ -17,15 +16,12 @@ def load_portfolio_knowledge() -> str:
     Safely reads your static resume text file to feed into the LLM context pool.
     """
     try:
-        if getattr(settings, 'configured', False):
-            file_path = os.path.join(settings.BASE_DIR, 'chat', 'resume.txt')
-        else:
-            file_path = os.path.join(Path(__file__).resolve().parents[1], 'chat', 'resume.txt')
+        file_path = Path(__file__).resolve().parents[1] / 'chat' / 'resume.txt'
         with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
     except Exception as e:
         print(f"🔴 Error loading resume context file: {e}")
-        return "John Doe is an Elite Full-Stack AI Engineer specializing in React, TypeScript, and Django Ninja."
+        return "John Doe is an Elite Full-Stack AI Engineer specializing in React, TypeScript, and FastAPI."
 
 
 def load_repository_code() -> str:
