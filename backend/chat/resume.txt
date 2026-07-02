@@ -1,0 +1,25 @@
+====================================================================
+CORE PROFILE: FULL-STACK AI ENGINEER
+====================================================================
+Name: John Doe
+Location: Based and staying in Kampala, Uganda. Available for worldwide remote work.
+Contact: john.doe@email.com | WhatsApp: +256700000000
+
+TECHNICAL STACK CLUSTER:
+- Frontend: React, Vite, TypeScript, Tailwind CSS v4.
+- Backend: Python, Django, Django Ninja REST API, SQLite.
+- AI Architecture: CrewAI Orchestration, OpenAI API, LangChain, RAG Systems.
+- Cloud Infrastructure: Render, Docker, 
+GitHub Codespaces
+.
+
+PRODUCTION PROJECTS HIGHLIGHTS:
+1. CoreAI SaaS Portfolio Dashboard
+   - Built a high-end multi-agent command console using React (TS) and Django Ninja.
+   - Orchestrated 4 autonomous CrewAI workers running background task pipelines.
+   - Connected ElevenLabs TTS API to synthesize streaming voice responses live.
+   - Implemented an asynchronous guest handshake session and Twilio hardware alerts.
+
+2. ThreatScan Automation Engine
+   - Programmed a Python automated source code security scanner tool.
+   - Analyzed uploaded components for active SQL Injection vulnerabilities and syntax holes.
